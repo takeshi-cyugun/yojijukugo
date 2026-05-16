@@ -17,48 +17,88 @@
     type: 'meaning_4_choice' | 'name_4_choice' | 'name_exact';
   }
 
-  // Mock data for 10 questions
-  const mockQuestions: QuizQuestion[] = [
-    { id: 1, type: 'meaning_4_choice', question: '意気投合', correctAnswer: '意気が投じ合い、互いに話が合うこと。', choices: ['意気が投じ合い、互いに話が合うこと。', '言葉によらず互いの心と心で通じ合うこと。', '一度きりの出会いを大切にすること。', '危険が迫っていて、少しの油断もできないこと。'], hint: 'い' },
-    { id: 2, type: 'meaning_4_choice', question: '以心伝心', correctAnswer: '言葉によらず互いの心と心で通じ合うこと。', choices: ['言葉によらず互いの心と心で通じ合うこと。', '意気が投じ合い、互いに話が合うこと。', '一つの行為で二つの利益を得ること。', '昔の事柄や学問を研究し、そこから新しい知識や見解を得ること。'], hint: 'い' },
-    { id: 3, type: 'name_4_choice', question: '一度きりの出会いを大切にすること。', correctAnswer: '一期一会', choices: ['一期一会', '一石二鳥', '危機一髪', '温故知新'], hint: 'い' },
-    { id: 4, type: 'name_4_choice', question: '一つの行為で二つの利益を得ること。', correctAnswer: '一石二鳥', choices: ['一石二鳥', '一期一会', '危機一髪', '温故知新'], hint: 'い' },
-    { id: 5, type: 'name_exact', question: '危険が迫っていて、少しの油断もできないこと。', correctAnswer: '危機一髪', hint: 'き' },
-    { id: 6, type: 'name_exact', question: '昔の事柄や学問を研究し、そこから新しい知識や見解を得ること。', correctAnswer: '温故知新', hint: 'お' },
-    { id: 7, type: 'meaning_4_choice', question: '猿も木から落ちる', correctAnswer: 'どんな名人でも失敗することがあるということ。', choices: ['どんな名人でも失敗することがあるということ。', '辛抱強く努力すれば、必ず成功するということ。', 'わずかなものでも、積もり積もれば大きなものになるということ。', '急ぐときは、危険な近道よりも安全な遠回りをする方が結局は早いということ。'], hint: 'さ' },
-    { id: 8, type: 'meaning_4_choice', question: '石の上にも三年', correctAnswer: '辛抱強く努力すれば、必ず成功するということ。', choices: ['辛抱強く努力すれば、必ず成功することがあるということ。', 'どんな名人でも失敗することがあるということ。', 'わずかなものでも、積もり積もれば大きなものになるということ。', '急ぐときは、危険な近道よりも安全な遠回りをする方が結局は早いということ。'], hint: 'い' },
-    { id: 9, type: 'name_4_choice', question: 'わずかなものでも、積もり積もれば大きなものになるということ。', correctAnswer: '塵も積もれば山となる', choices: ['塵も積もれば山となる', '石の上にも三年', '猿も木から落ちる', '急がば回れ'], hint: 'ち' },
-    { id: 10, type: 'name_4_choice', question: '急ぐときは、危険な近道よりも安全な遠回りをする方が結局は早いということ。', correctAnswer: '急がば回れ', choices: ['急がば回れ', '塵も積もれば山となる', '石の上にも三年', '猿も木から落ちる'], hint: 'い' },
-  ];
+  interface RawIdiom {
+    id: number;
+    phrase: string;
+    reading: string;
+    meaning: string;
+    usage: string;
+  }
 
-  const quizQuestions = mockQuestions.filter(q => {
-    if (genre === 'yoji') {
-      return q.id <= 6 && q.type === mode;
-    } else {
-      return q.id > 6 && q.type === mode;
-    }
-  });
+  let quizQuestions = $state<QuizQuestion[]>([]);
 
-  let currentQuestionIndex = 0;
-  let currentQuestion: QuizQuestion;
-  let userAnswer = '';
-  let feedbackMessage = '';
-  let showHint = false;
-  let isAnswerSubmitted = false;
-  let quizSessionStarted = false;
-  let correctCount = 0;
-  let selectedChoice: string | null = null;
+  // APIからデータを取得する関数
+  async function fetchData() {
+    try {
+      const response = await fetch(`http://localhost:8080/api/hello?genre=${genre}`);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data: RawIdiom[] = await response.json();
+      
+      // データをランダムにシャッフルして最大10問を抽出
+      const shuffled = [...data].sort(() => Math.random() - 0.5);
+      const selected = shuffled.slice(0, 10);
 
-  $: {
-    if (quizQuestions.length > 0) {
-      currentQuestion = quizQuestions[currentQuestionIndex];
-      userAnswer = '';
-      feedbackMessage = '';
-      showHint = false;
-      isAnswerSubmitted = false;
-      selectedChoice = null;
+      // 抽出したデータを現在のクイズ設定に合わせて変換
+      quizQuestions = selected.map((item) => {
+        const isMeaningQuiz = mode === 'meaning_4_choice';
+        const question = isMeaningQuiz ? item.phrase : item.meaning;
+        const correctAnswer = isMeaningQuiz ? item.meaning : item.phrase;
+        
+        let choices: string[] | undefined;
+        if (mode !== 'name_exact') {
+          // 全データ（data）から誤答（ダミー）を作成して、選択肢の多様性を確保
+          const distractors = data
+            .filter(i => i.id !== item.id)
+            .map(i => isMeaningQuiz ? i.meaning : i.phrase);
+          
+          // 正解と誤答を混ぜてランダムに4つ選んでシャッフル
+          choices = [correctAnswer, ...distractors.sort(() => Math.random() - 0.5).slice(0, 3)]
+            .sort(() => Math.random() - 0.5);
+        }
+
+        return {
+          id: item.id,
+          type: mode as any,
+          question,
+          correctAnswer,
+          choices,
+          hint: item.reading[0] // 読みの1文字目をヒントに設定
+        };
+      });
+    } catch (error) {
+      console.error('データ取得エラー:', error);
     }
   }
+
+  // ページが表示された時に一度だけ実行
+  $effect(() => {
+    fetchData();
+  });
+
+  let currentQuestionIndex = $state(0);
+  let userAnswer = $state('');
+  let feedbackMessage = $state('');
+  let showHint = $state(false);
+  let isAnswerSubmitted = $state(false);
+  let quizSessionStarted = $state(false);
+  let correctCount = $state(0);
+  let selectedChoice = $state<string | null>(null);
+
+  // インデックスに基づいて現在の問題を自動計算
+  const currentQuestion = $derived(quizQuestions[currentQuestionIndex]);
+
+  // 問題が切り替わったときに回答状況などをリセットする
+  $effect(() => {
+    currentQuestionIndex; // 依存関係として認識させるために参照
+    quizQuestions; // 問題リスト自体が変わった時もリセット
+    userAnswer = '';
+    feedbackMessage = '';
+    showHint = false;
+    isAnswerSubmitted = false;
+    selectedChoice = null;
+  });
 
   function submitAnswer() {
     isAnswerSubmitted = true;
@@ -99,14 +139,17 @@
     showHint = !showHint;
   }
 
-  $: isSubmitActive = (currentQuestion?.type === 'name_exact' && userAnswer.trim().length > 0) ||
-                      ((currentQuestion?.type === 'meaning_4_choice' || currentQuestion?.type === 'name_4_choice') && selectedChoice !== null);
+  const isSubmitActive = $derived(
+    (currentQuestion?.type === 'name_exact' && userAnswer.trim().length > 0) ||
+    ((currentQuestion?.type === 'meaning_4_choice' || currentQuestion?.type === 'name_4_choice') && selectedChoice !== null)
+  );
 </script>
 
 <main class="min-h-[100dvh] bg-slate-50 flex flex-col font-sans">
   <header class="bg-white border-b border-slate-200 px-4 py-6 text-center shrink-0">
     <h1 class="text-3xl font-black text-slate-900 tracking-tight">クイズアプリ</h1>
   </header>
+{#if quizQuestions.length > 0 && currentQuestion}
 
   <div class="flex-1 overflow-y-auto p-6 flex flex-col items-center">
     <div class="w-full max-w-md">
@@ -239,4 +282,9 @@
       </div>
     </div>
   </div>
+{:else}
+  <div class="flex-1 flex items-center justify-center">
+    <p class="text-slate-500 font-medium italic">問題を読み込み中...</p>
+  </div>
+{/if}
 </main>
