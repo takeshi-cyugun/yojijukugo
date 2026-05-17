@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { quizResult } from '$lib/stores/quizStore';
+	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
 	const genre = $page.url.searchParams.get('genre') || 'yoji';
 	const mode = $page.url.searchParams.get('mode') || 'meaning_4_choice';
@@ -30,7 +31,7 @@
 	// APIからデータを取得する関数
 	async function fetchData() {
 		try {
-			const response = await fetch(`http://localhost:8080/api/idioms?genre=${genre}`);
+			const response = await fetch(`${PUBLIC_API_BASE_URL}/api/idioms?genre=${genre}`);
 			if (!response.ok) {
 				throw new Error('Network response was not ok');
 			}
@@ -219,7 +220,13 @@
 					{:else}
 						{#each currentQuestion?.choices || [] as choice, i}
 							<button
-								on:click={() => (selectedChoice = choice)}
+								on:click={() => {
+									if (selectedChoice === choice) {
+										submitAnswer();
+									} else {
+										selectedChoice = choice;
+									}
+								}}
 								class="flex w-full items-center rounded-xl border-2 p-4 text-left transition-all duration-200
                 {selectedChoice === choice && !isAnswerSubmitted
 									? 'border-indigo-600 bg-indigo-50 ring-4 ring-indigo-600/10'
