@@ -13,6 +13,7 @@
 		id: number;
 		question: string;
 		correctAnswer: string;
+		correctReading?: string;
 		choices?: string[];
 		hint?: string;
 		type: 'meaning_4_choice' | 'name_4_choice' | 'name_exact';
@@ -66,6 +67,7 @@
 					type: mode as any,
 					question,
 					correctAnswer,
+					correctReading: item.reading,
 					choices,
 					hint: item.reading[0] // 読みの1文字目をヒントに設定
 				};
@@ -109,7 +111,10 @@
 		let correct = false;
 
 		if (currentQuestion.type === 'name_exact') {
-			correct = userAnswer.trim() === currentQuestion.correctAnswer;
+			const input = userAnswer.trim();
+			correct =
+				input === currentQuestion.correctAnswer ||
+				(currentQuestion.correctReading && input === currentQuestion.correctReading);
 		} else {
 			correct = selectedChoice === currentQuestion.correctAnswer;
 		}
